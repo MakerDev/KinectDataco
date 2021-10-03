@@ -13,6 +13,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
     using System.Windows.Media;
     using System.Windows.Media.Imaging;
     using Microsoft.Kinect;
+    using Newtonsoft.Json;
 
     /// <summary>
     /// Interaction logic for MainWindow.xaml
@@ -118,6 +119,8 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         private byte[] _depthColorPixels;
         #endregion
 
+        private bool _isRecording = false;
+
 
         /// <summary>
         /// Initializes a new instance of the MainWindow class.
@@ -202,6 +205,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                 _sensor.DepthFrameReady += OnFrameReadySensorDepthFrame;
                 #endregion
 
+                _sensor.AllFramesReady += OnAllFramesReady;
                 // Start the sensor!
                 try
                 {
@@ -216,6 +220,14 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             if (null == _sensor)
             {
                 statusBarText.Text = Properties.Resources.NoKinectReady;
+            }
+        }
+
+        private void OnAllFramesReady(object sender, AllFramesReadyEventArgs e)
+        {
+            if (_isRecording)
+            {
+                SaveAllImages();
             }
         }
 
@@ -326,6 +338,25 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                 {
                     skeletons = new Skeleton[skeletonFrame.SkeletonArrayLength];
                     skeletonFrame.CopySkeletonDataTo(skeletons);
+
+                    if (_isRecording)
+                    {
+                        string time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
+                        string myPhotos = Directory.GetCurrentDirectory();
+
+                        string jsonPath = Path.Combine(myPhotos, "Skeleton-" + time + ".json");
+
+                        var jsonData = JsonConvert.SerializeObject(skeletons, Formatting.Indented);
+
+                        try
+                        {
+                            File.WriteAllText(jsonPath, jsonData);
+                        }
+                        catch (IOException)
+                        {
+                            statusBarText.Text = string.Format(CultureInfo.InvariantCulture, "{0} {1}", Properties.Resources.ScreenshotWriteFailed, jsonPath);
+                        }
+                    }
                 }
             }
 
@@ -391,7 +422,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             depthEncoder.Frames.Add(BitmapFrame.Create(_depthColorBitmap));
             colorEncoder.Frames.Add(BitmapFrame.Create(_colorBitmap));
 
-            string time = DateTime.Now.ToString("hh'-'mm'-'ss", CultureInfo.CurrentUICulture.DateTimeFormat);
+            string time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
 
             //string myPhotos = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             string myPhotos = Directory.GetCurrentDirectory();
@@ -419,6 +450,18 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             }
         }
 
+        /// <summary>
+        /// Handles the checking or unchecking of the recording mode
+        /// </summary>
+        /// <param name="sender">object sending the event</param>
+        /// <param name="e">event arguments</param>
+        private void RecordingModeChanged(object sender, RoutedEventArgs e)
+        {
+            if (null != _sensor)
+            {
+                _isRecording = CheckBoxRecordingMode.IsChecked.GetValueOrDefault();
+            }
+        }
 
         #region SKELETON DRAWINGS
         /// <summary>
@@ -527,25 +570,25 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             drawingContext.DrawLine(drawPen, SkeletonPointToScreen(joint0.Position), SkeletonPointToScreen(joint1.Position));
         }
 
-        /// <summary>
-        /// Handles the checking or unchecking of the seated mode combo box
-        /// </summary>
-        /// <param name="sender">object sending the event</param>
-        /// <param name="e">event arguments</param>
-        private void CheckBoxSeatedModeChanged(object sender, RoutedEventArgs e)
-        {
-            if (null != _sensor)
-            {
-                if (CheckBoxSeatedMode.IsChecked.GetValueOrDefault())
-                {
-                    _sensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Seated;
-                }
-                else
-                {
-                    _sensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Default;
-                }
-            }
-        }
+        ///// <summary>
+        ///// Handles the checking or unchecking of the seated mode combo box
+        ///// </summary>
+        ///// <param name="sender">object sending the event</param>
+        ///// <param name="e">event arguments</param>
+        //private void CheckBoxSeatedModeChanged(object sender, RoutedEventArgs e)
+        //{
+        //    if (null != _sensor)
+        //    {
+        //        if (CheckBoxSeatedMode.IsChecked.GetValueOrDefault())
+        //        {
+        //            _sensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Seated;
+        //        }
+        //        else
+        //        {
+        //            _sensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Default;
+        //        }
+        //    }
+        //}
 
         /// <summary>
         /// Draws indicators to show which edges are clipping skeleton data
