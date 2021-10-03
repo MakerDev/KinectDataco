@@ -73,7 +73,7 @@
         </Style>
     </Window.Resources>
 
-    <Grid Name="layoutGrid" Margin="10 0 10 0">
+    <Grid Name="LayoutGrid" Margin="10 0 10 0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -113,7 +113,8 @@
                     DockPanel.Dock="Right"
                     Content="Screenshot" Height="Auto" HorizontalAlignment="Right" 
                     VerticalAlignment="Center" Margin="10 10 0 10" 
-                    Name="ButtonSnapShot"/>
+                    Name="ButtonSnapShot"
+                    Click="ButtonScreenshotClick"/>
             <CheckBox Style="{StaticResource SquareCheckBox}" 
                       Content="Seated Mode" 
                       Height="Auto" HorizontalAlignment="Left" 

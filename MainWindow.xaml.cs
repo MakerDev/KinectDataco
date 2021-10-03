@@ -6,6 +6,8 @@
 
 namespace Microsoft.Samples.Kinect.SkeletonBasics
 {
+    using System;
+    using System.Globalization;
     using System.IO;
     using System.Windows;
     using System.Windows.Media;
@@ -44,6 +46,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         private const double CLIP_BOUNDS_THICKNESS = 10;
         #endregion
 
+        #region SKELETON DRAWING PROPERTIES
         /// <summary>
         /// Brush used to draw skeleton center point
         /// </summary>
@@ -68,6 +71,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         /// Pen used for drawing bones that are currently inferred
         /// </summary>        
         private readonly Pen _inferredBonePen = new Pen(Brushes.Gray, 1);
+        #endregion
 
         /// <summary>
         /// Active Kinect sensor
@@ -357,6 +361,66 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             }
         }
 
+
+        /// <summary>
+        /// Handles the user clicking on the screenshot button
+        /// </summary>
+        /// <param name="sender">object sending the event</param>
+        /// <param name="e">event arguments</param>
+        private void ButtonScreenshotClick(object sender, RoutedEventArgs e)
+        {
+            SaveAllImages();
+        }
+
+        /// <summary>
+        /// Saves color and depth images to files.
+        /// </summary>
+        private void SaveAllImages()
+        {
+            if (null == _sensor)
+            {
+                statusBarText.Text = Properties.Resources.ConnectDeviceFirst;
+                return;
+            }
+
+            // create a png bitmap encoder which knows how to save a .png file
+            BitmapEncoder depthEncoder = new PngBitmapEncoder();
+            BitmapEncoder colorEncoder = new PngBitmapEncoder();
+
+            // create frame from the writable bitmap and add to encoder
+            depthEncoder.Frames.Add(BitmapFrame.Create(_depthColorBitmap));
+            colorEncoder.Frames.Add(BitmapFrame.Create(_colorBitmap));
+
+            string time = DateTime.Now.ToString("hh'-'mm'-'ss", CultureInfo.CurrentUICulture.DateTimeFormat);
+
+            //string myPhotos = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            string myPhotos = Directory.GetCurrentDirectory();
+
+            string depthImagePath = Path.Combine(myPhotos, "DepthSnapshot-" + time + ".png");
+            string colorImagePath = Path.Combine(myPhotos, "ColorSnapshot-" + time + ".png");
+
+            // write the new file to disk
+            try
+            {
+                using (FileStream fs = new FileStream(depthImagePath, FileMode.Create))
+                {
+                    depthEncoder.Save(fs);
+                }
+                using (FileStream fs = new FileStream(colorImagePath, FileMode.Create))
+                {
+                    colorEncoder.Save(fs);
+                }
+
+                statusBarText.Text = string.Format(CultureInfo.InvariantCulture, "{0} {1}", Properties.Resources.ScreenshotWriteSuccess, depthImagePath);
+            }
+            catch (IOException)
+            {
+                statusBarText.Text = string.Format(CultureInfo.InvariantCulture, "{0} {1}", Properties.Resources.ScreenshotWriteFailed, depthImagePath);
+            }
+        }
+
+
+        #region SKELETON DRAWINGS
         /// <summary>
         /// Draws a skeleton's bones and joints
         /// </summary>
@@ -522,5 +586,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                     new Rect(RENDER_WIDTH - CLIP_BOUNDS_THICKNESS, 0, CLIP_BOUNDS_THICKNESS, RENDER_HEIGHT));
             }
         }
+        #endregion
+
     }
 }
