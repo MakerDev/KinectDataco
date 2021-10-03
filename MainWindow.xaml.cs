@@ -9,6 +9,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
     using System.IO;
     using System.Windows;
     using System.Windows.Media;
+    using System.Windows.Media.Imaging;
     using Microsoft.Kinect;
 
     /// <summary>
@@ -16,6 +17,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
     /// </summary>
     public partial class MainWindow : Window
     {
+        #region CONSTANTS
         /// <summary>
         /// Width of output drawing
         /// </summary>
@@ -40,6 +42,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         /// Thickness of clip edge rectangles
         /// </summary>
         private const double CLIP_BOUNDS_THICKNESS = 10;
+        #endregion
 
         /// <summary>
         /// Brush used to draw skeleton center point
@@ -79,7 +82,38 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         /// <summary>
         /// Drawing image that we will display
         /// </summary>
-        private DrawingImage _imageSource;
+        private DrawingImage _skeletonImageSource;
+
+        #region COLOR_PROPERTIES
+
+        /// <summary>
+        /// Bitmap that will hold color information
+        /// </summary>
+        private WriteableBitmap _colorBitmap;
+
+        /// <summary>
+        /// Intermediate storage for the color data received from the camera
+        /// </summary>
+        private byte[] _colorPixels;
+        #endregion
+
+        #region DEPTH PROPERTIES
+        /// <summary>
+        /// Bitmap that will hold color information
+        /// </summary>
+        private WriteableBitmap _depthColorBitmap;
+
+        /// <summary>
+        /// Intermediate storage for the depth data received from the camera
+        /// </summary>
+        private DepthImagePixel[] _depthPixels;
+
+        /// <summary>
+        /// Intermediate storage for the depth data converted to color
+        /// </summary>
+        private byte[] _depthColorPixels;
+        #endregion
+
 
         /// <summary>
         /// Initializes a new instance of the MainWindow class.
@@ -89,45 +123,6 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             InitializeComponent();
         }
 
-        /// <summary>
-        /// Draws indicators to show which edges are clipping skeleton data
-        /// </summary>
-        /// <param name="skeleton">skeleton to draw clipping information for</param>
-        /// <param name="drawingContext">drawing context to draw to</param>
-        private static void RenderClippedEdges(Skeleton skeleton, DrawingContext drawingContext)
-        {
-            if (skeleton.ClippedEdges.HasFlag(FrameEdges.Bottom))
-            {
-                drawingContext.DrawRectangle(
-                    Brushes.Red,
-                    null,
-                    new Rect(0, RENDER_HEIGHT - CLIP_BOUNDS_THICKNESS, RENDER_WIDTH, CLIP_BOUNDS_THICKNESS));
-            }
-
-            if (skeleton.ClippedEdges.HasFlag(FrameEdges.Top))
-            {
-                drawingContext.DrawRectangle(
-                    Brushes.Red,
-                    null,
-                    new Rect(0, 0, RENDER_WIDTH, CLIP_BOUNDS_THICKNESS));
-            }
-
-            if (skeleton.ClippedEdges.HasFlag(FrameEdges.Left))
-            {
-                drawingContext.DrawRectangle(
-                    Brushes.Red,
-                    null,
-                    new Rect(0, 0, CLIP_BOUNDS_THICKNESS, RENDER_HEIGHT));
-            }
-
-            if (skeleton.ClippedEdges.HasFlag(FrameEdges.Right))
-            {
-                drawingContext.DrawRectangle(
-                    Brushes.Red,
-                    null,
-                    new Rect(RENDER_WIDTH - CLIP_BOUNDS_THICKNESS, 0, CLIP_BOUNDS_THICKNESS, RENDER_HEIGHT));
-            }
-        }
 
         /// <summary>
         /// Execute startup tasks
@@ -140,10 +135,10 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             _drawingGroup = new DrawingGroup();
 
             // Create an image source that we can use in our image control
-            _imageSource = new DrawingImage(_drawingGroup);
+            _skeletonImageSource = new DrawingImage(_drawingGroup);
 
             // Display the drawing using our image control
-            Image.Source = _imageSource;
+            SkeltonImage.Source = _skeletonImageSource;
 
             // Look through all sensors and start the first connected one.
             // This requires that a Kinect is connected at the time of app startup.
@@ -160,11 +155,48 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
 
             if (null != _sensor)
             {
+                #region SKELETON SETTINGS
                 // Turn on the skeleton stream to receive skeleton frames
                 _sensor.SkeletonStream.Enable();
-
                 // Add an event handler to be called whenever there is new color frame data
-                _sensor.SkeletonFrameReady += SensorSkeletonFrameReady;
+                _sensor.SkeletonFrameReady += OnFrameReadySenesorSkeleton;
+                #endregion
+
+                #region COLOR SETTINGS
+                // Turn on the color stream to receive color frames
+                _sensor.ColorStream.Enable(ColorImageFormat.RgbResolution640x480Fps30);
+
+                // Allocate space to put the pixels we'll receive
+                _colorPixels = new byte[_sensor.ColorStream.FramePixelDataLength];
+
+                // This is the bitmap we'll display on-screen
+                _colorBitmap = new WriteableBitmap(_sensor.ColorStream.FrameWidth, _sensor.ColorStream.FrameHeight, 96.0, 96.0, PixelFormats.Bgr32, null);
+
+                // Set the image we display to point to the bitmap where we'll put the image data
+                ColorImage.Source = _colorBitmap;
+                // Add an event handler to be called whenever there is new color frame data
+                _sensor.ColorFrameReady += OnFrameReadySensorColor;
+                #endregion
+
+                #region DEPTH SETTINGS
+                // Turn on the depth stream to receive depth frames
+                _sensor.DepthStream.Enable(DepthImageFormat.Resolution640x480Fps30);
+
+                // Allocate space to put the depth pixels we'll receive
+                _depthPixels = new DepthImagePixel[_sensor.DepthStream.FramePixelDataLength];
+
+                // Allocate space to put the color pixels we'll create
+                _depthColorPixels = new byte[_sensor.DepthStream.FramePixelDataLength * sizeof(int)];
+
+                // This is the bitmap we'll display on-screen
+                _depthColorBitmap = new WriteableBitmap(_sensor.DepthStream.FrameWidth, _sensor.DepthStream.FrameHeight, 96.0, 96.0, PixelFormats.Bgr32, null);
+
+                // Set the image we display to point to the bitmap where we'll put the image data
+                DepthImage.Source = _depthColorBitmap;
+
+                // Add an event handler to be called whenever there is new depth frame data
+                _sensor.DepthFrameReady += OnFrameReadySensorDepthFrame;
+                #endregion
 
                 // Start the sensor!
                 try
@@ -197,11 +229,90 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         }
 
         /// <summary>
+        /// Event handler for Kinect sensor's ColorFrameReady event
+        /// </summary>
+        /// <param name="sender">object sending the event</param>
+        /// <param name="e">event arguments</param>
+        private void OnFrameReadySensorColor(object sender, ColorImageFrameReadyEventArgs e)
+        {
+            using (ColorImageFrame colorFrame = e.OpenColorImageFrame())
+            {
+                if (colorFrame != null)
+                {
+                    // Copy the pixel data from the image to a temporary array
+                    colorFrame.CopyPixelDataTo(_colorPixels);
+
+                    // Write the pixel data into our bitmap
+                    _colorBitmap.WritePixels(
+                        new Int32Rect(0, 0, _colorBitmap.PixelWidth, _colorBitmap.PixelHeight),
+                        _colorPixels,
+                        _colorBitmap.PixelWidth * sizeof(int),
+                        0);
+                }
+            }
+        }
+
+        private void OnFrameReadySensorDepthFrame(object sender, DepthImageFrameReadyEventArgs e)
+        {
+            using (DepthImageFrame depthFrame = e.OpenDepthImageFrame())
+            {
+                if (depthFrame != null)
+                {
+                    // Copy the pixel data from the image to a temporary array
+                    depthFrame.CopyDepthImagePixelDataTo(_depthPixels);
+
+                    // Get the min and max reliable depth for the current frame
+                    int minDepth = depthFrame.MinDepth;
+                    int maxDepth = depthFrame.MaxDepth;
+
+                    // Convert the depth to RGB
+                    int colorPixelIndex = 0;
+                    for (int i = 0; i < _depthPixels.Length; ++i)
+                    {
+                        // Get the depth for this pixel
+                        short depth = _depthPixels[i].Depth;
+
+                        // To convert to a byte, we're discarding the most-significant
+                        // rather than least-significant bits.
+                        // We're preserving detail, although the intensity will "wrap."
+                        // Values outside the reliable depth range are mapped to 0 (black).
+
+                        // Note: Using conditionals in this loop could degrade performance.
+                        // Consider using a lookup table instead when writing production code.
+                        // See the KinectDepthViewer class used by the KinectExplorer sample
+                        // for a lookup table example.
+                        byte intensity = (byte)(depth >= minDepth && depth <= maxDepth ? depth : 0);
+
+                        // Write out blue byte
+                        _depthColorPixels[colorPixelIndex++] = intensity;
+
+                        // Write out green byte
+                        _depthColorPixels[colorPixelIndex++] = intensity;
+
+                        // Write out red byte                        
+                        _depthColorPixels[colorPixelIndex++] = intensity;
+
+                        // We're outputting BGR, the last byte in the 32 bits is unused so skip it
+                        // If we were outputting BGRA, we would write alpha here.
+                        ++colorPixelIndex;
+                    }
+
+                    // Write the pixel data into our bitmap
+                    _depthColorBitmap.WritePixels(
+                        new Int32Rect(0, 0, _depthColorBitmap.PixelWidth, _depthColorBitmap.PixelHeight),
+                        _depthColorPixels,
+                        _depthColorBitmap.PixelWidth * sizeof(int),
+                        0);
+                }
+            }
+        }
+
+        /// <summary>
         /// Event handler for Kinect sensor's SkeletonFrameReady event
         /// </summary>
         /// <param name="sender">object sending the event</param>
         /// <param name="e">event arguments</param>
-        private void SensorSkeletonFrameReady(object sender, SkeletonFrameReadyEventArgs e)
+        private void OnFrameReadySenesorSkeleton(object sender, SkeletonFrameReadyEventArgs e)
         {
             Skeleton[] skeletons = new Skeleton[0];
 
@@ -281,7 +392,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             DrawBone(skeleton, drawingContext, JointType.HipRight, JointType.KneeRight);
             DrawBone(skeleton, drawingContext, JointType.KneeRight, JointType.AnkleRight);
             DrawBone(skeleton, drawingContext, JointType.AnkleRight, JointType.FootRight);
- 
+
             // Render Joints
             foreach (Joint joint in skeleton.Joints)
             {
@@ -289,11 +400,11 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
 
                 if (joint.TrackingState == JointTrackingState.Tracked)
                 {
-                    drawBrush = _trackedJointBrush;                    
+                    drawBrush = _trackedJointBrush;
                 }
                 else if (joint.TrackingState == JointTrackingState.Inferred)
                 {
-                    drawBrush = _inferredJointBrush;                    
+                    drawBrush = _inferredJointBrush;
                 }
 
                 if (drawBrush != null)
@@ -361,7 +472,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         {
             if (null != _sensor)
             {
-                if (checkBoxSeatedMode.IsChecked.GetValueOrDefault())
+                if (CheckBoxSeatedMode.IsChecked.GetValueOrDefault())
                 {
                     _sensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Seated;
                 }
@@ -369,6 +480,46 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                 {
                     _sensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Default;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Draws indicators to show which edges are clipping skeleton data
+        /// </summary>
+        /// <param name="skeleton">skeleton to draw clipping information for</param>
+        /// <param name="drawingContext">drawing context to draw to</param>
+        private static void RenderClippedEdges(Skeleton skeleton, DrawingContext drawingContext)
+        {
+            if (skeleton.ClippedEdges.HasFlag(FrameEdges.Bottom))
+            {
+                drawingContext.DrawRectangle(
+                    Brushes.Red,
+                    null,
+                    new Rect(0, RENDER_HEIGHT - CLIP_BOUNDS_THICKNESS, RENDER_WIDTH, CLIP_BOUNDS_THICKNESS));
+            }
+
+            if (skeleton.ClippedEdges.HasFlag(FrameEdges.Top))
+            {
+                drawingContext.DrawRectangle(
+                    Brushes.Red,
+                    null,
+                    new Rect(0, 0, RENDER_WIDTH, CLIP_BOUNDS_THICKNESS));
+            }
+
+            if (skeleton.ClippedEdges.HasFlag(FrameEdges.Left))
+            {
+                drawingContext.DrawRectangle(
+                    Brushes.Red,
+                    null,
+                    new Rect(0, 0, CLIP_BOUNDS_THICKNESS, RENDER_HEIGHT));
+            }
+
+            if (skeleton.ClippedEdges.HasFlag(FrameEdges.Right))
+            {
+                drawingContext.DrawRectangle(
+                    Brushes.Red,
+                    null,
+                    new Rect(RENDER_WIDTH - CLIP_BOUNDS_THICKNESS, 0, CLIP_BOUNDS_THICKNESS, RENDER_HEIGHT));
             }
         }
     }
