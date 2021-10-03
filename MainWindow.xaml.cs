@@ -7,13 +7,18 @@
 namespace Microsoft.Samples.Kinect.SkeletonBasics
 {
     using System;
+    using System.Collections.Generic;
     using System.Globalization;
     using System.IO;
+    using System.Linq;
+    using System.Threading;
     using System.Windows;
     using System.Windows.Media;
     using System.Windows.Media.Imaging;
+    using System.Windows.Threading;
     using Microsoft.Kinect;
     using Newtonsoft.Json;
+    using Newtonsoft.Json.Converters;
 
     /// <summary>
     /// Interaction logic for MainWindow.xaml
@@ -121,6 +126,23 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
 
         private bool _isRecording = false;
 
+        #region REPLAY SAVED JSON DATA
+        private DispatcherTimer _dispatcherTimer = new DispatcherTimer();
+        //Current file index to draw
+        private int _currentJsonIdx = 0;
+        private FileInfo[] _jsonFiles;
+        private bool _isLoadingJsonData = false;
+        #endregion
+
+        private string _skeletonDir = Path.Combine(Directory.GetCurrentDirectory(), "skeleton");
+        private string _colorDir = Path.Combine(Directory.GetCurrentDirectory(), "color");
+        private string _depth_dir = Path.Combine(Directory.GetCurrentDirectory(), "depth");
+
+        private readonly JsonSerializerSettings _jsonSettings = new JsonSerializerSettings()
+        {
+            Converters = new List<JsonConverter> { new StringEnumConverter() }
+        };
+
 
         /// <summary>
         /// Initializes a new instance of the MainWindow class.
@@ -128,6 +150,21 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         public MainWindow()
         {
             InitializeComponent();
+
+            if (Directory.Exists(_depth_dir) == false)
+            {
+                Directory.CreateDirectory(_depth_dir);
+            }
+
+            if (Directory.Exists(_colorDir) == false)
+            {
+                Directory.CreateDirectory(_colorDir);
+            }
+
+            if (Directory.Exists(_skeletonDir) == false)
+            {
+                Directory.CreateDirectory(_skeletonDir);
+            }
         }
 
 
@@ -342,11 +379,9 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                     if (_isRecording)
                     {
                         string time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
-                        string myPhotos = Directory.GetCurrentDirectory();
 
-                        string jsonPath = Path.Combine(myPhotos, "Skeleton-" + time + ".json");
-
-                        var jsonData = JsonConvert.SerializeObject(skeletons, Formatting.Indented);
+                        string jsonPath = Path.Combine(_skeletonDir, "Skeleton-" + time + ".json");
+                        string jsonData = JsonConvert.SerializeObject(skeletons, Formatting.Indented, new StringEnumConverter());
 
                         try
                         {
@@ -360,38 +395,57 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                 }
             }
 
-            using (DrawingContext dc = _drawingGroup.Open())
+            if (_isLoadingJsonData == false)
             {
-                // Draw a transparent background to set the render size
-                dc.DrawRectangle(Brushes.Black, null, new Rect(0.0, 0.0, RENDER_WIDTH, RENDER_HEIGHT));
 
-                if (skeletons.Length != 0)
-                {
-                    foreach (Skeleton skel in skeletons)
-                    {
-                        RenderClippedEdges(skel, dc);
-
-                        if (skel.TrackingState == SkeletonTrackingState.Tracked)
-                        {
-                            DrawBonesAndJoints(skel, dc);
-                        }
-                        else if (skel.TrackingState == SkeletonTrackingState.PositionOnly)
-                        {
-                            dc.DrawEllipse(
-                            _centerPointBrush,
-                            null,
-                            SkeletonPointToScreen(skel.Position),
-                            BODY_CENTER_THICKNESS,
-                            BODY_CENTER_THICKNESS);
-                        }
-                    }
-                }
-
-                // prevent drawing outside of our render area
-                _drawingGroup.ClipGeometry = new RectangleGeometry(new Rect(0.0, 0.0, RENDER_WIDTH, RENDER_HEIGHT));
+                DrawSkeletons(skeletons);
             }
         }
 
+        #region REPLAY JSON SKELETON DATA
+
+        private void OnDrawSkeletonFromJsonClick(object sender, RoutedEventArgs e)
+        {
+            var skeletonDirInfo = new DirectoryInfo(_skeletonDir);
+            _jsonFiles = skeletonDirInfo.GetFiles("*.json");
+
+            _currentJsonIdx = 0;
+            _dispatcherTimer.Tick += DrawSkeletonFrameFromJson;
+            _dispatcherTimer.Interval = TimeSpan.FromMilliseconds(50);
+            _dispatcherTimer.Start();
+            _isLoadingJsonData = true;
+        }
+
+        private void DrawSkeletonFrameFromJson(object sender, EventArgs e)
+        {
+            if (_jsonFiles.Length <= _currentJsonIdx + 1)
+            {
+                _isLoadingJsonData = false;
+                _dispatcherTimer.Stop();
+                return;
+            }
+
+            var jsonFile = _jsonFiles[_currentJsonIdx++];
+
+            var skeletons = JsonConvert.DeserializeObject<Skeleton[]>(File.ReadAllText(jsonFile.FullName), _jsonSettings);
+            var skeletonsTemp = JsonConvert.DeserializeObject<SkeletonTemp[]>(File.ReadAllText(jsonFile.FullName), _jsonSettings);
+            for (int i = 0; i < skeletons.Length; i++)
+            {
+                //num of joint types = 20
+                for (int j = 0; j < 20; j++)
+                {
+                    var joint = skeletons[i].Joints[(JointType)j];
+                    var jointTemp = skeletonsTemp[i].Joints[j];
+                    joint.Position = jointTemp.Position;
+                    joint.TrackingState = jointTemp.TrackingState;
+                    skeletons[i].Joints[(JointType)j] = joint;
+                }
+            }
+
+            DrawSkeletons(skeletons);
+        }
+
+        #endregion
 
         /// <summary>
         /// Handles the user clicking on the screenshot button
@@ -424,11 +478,8 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
 
             string time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
 
-            //string myPhotos = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-            string myPhotos = Directory.GetCurrentDirectory();
-
-            string depthImagePath = Path.Combine(myPhotos, "DepthSnapshot-" + time + ".png");
-            string colorImagePath = Path.Combine(myPhotos, "ColorSnapshot-" + time + ".png");
+            string depthImagePath = Path.Combine(_depth_dir, "DepthSnapshot-" + time + ".png");
+            string colorImagePath = Path.Combine(_colorDir, "ColorSnapshot-" + time + ".png");
 
             // write the new file to disk
             try
@@ -591,6 +642,44 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         //}
 
         /// <summary>
+        /// Draw skeletons
+        /// </summary>
+        /// <param name="skeletons"></param>
+        private void DrawSkeletons(Skeleton[] skeletons)
+        {
+            using (DrawingContext dc = _drawingGroup.Open())
+            {
+                // Draw a transparent background to set the render size
+                dc.DrawRectangle(Brushes.Black, null, new Rect(0.0, 0.0, RENDER_WIDTH, RENDER_HEIGHT));
+
+                if (skeletons.Length != 0)
+                {
+                    foreach (Skeleton skeleton in skeletons)
+                    {
+                        RenderClippedEdges(skeleton, dc);
+
+                        if (skeleton.TrackingState == SkeletonTrackingState.Tracked)
+                        {
+                            DrawBonesAndJoints(skeleton, dc);
+                        }
+                        else if (skeleton.TrackingState == SkeletonTrackingState.PositionOnly)
+                        {
+                            dc.DrawEllipse(
+                            _centerPointBrush,
+                            null,
+                            SkeletonPointToScreen(skeleton.Position),
+                            BODY_CENTER_THICKNESS,
+                            BODY_CENTER_THICKNESS);
+                        }
+                    }
+                }
+
+                // prevent drawing outside of our render area
+                _drawingGroup.ClipGeometry = new RectangleGeometry(new Rect(0.0, 0.0, RENDER_WIDTH, RENDER_HEIGHT));
+            }
+        }
+
+        /// <summary>
         /// Draws indicators to show which edges are clipping skeleton data
         /// </summary>
         /// <param name="skeleton">skeleton to draw clipping information for</param>
@@ -630,6 +719,5 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             }
         }
         #endregion
-
     }
 }

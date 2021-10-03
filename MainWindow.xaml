@@ -91,7 +91,7 @@
             <Image Grid.Column="1" Source="Images\Status.png" Stretch="None" HorizontalAlignment="Center" Margin="0 0 0 5"/>
         </DockPanel>
         <StackPanel Grid.Row="1">
-            <StackPanel Orientation="Horizontal" >
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" >
                 <Viewbox Stretch="Uniform" HorizontalAlignment="Center"
                       Margin="0 0 0 0">
                     <Image x:Name="SkeltonImage" Width="640" Height="480"/>
@@ -115,6 +115,12 @@
                     VerticalAlignment="Center" Margin="10 10 0 10" 
                     Name="ButtonSnapShot"
                     Click="ButtonScreenshotClick"/>
+            <Button DockPanel.Dock="Left"
+                    Width="100" Height="30"
+                    Margin="0 0 10 0"
+                    Content="Load json"
+                    Click="OnDrawSkeletonFromJsonClick"
+                    />
             <CheckBox Style="{StaticResource SquareCheckBox}" 
                       Content="Recording" 
                       Height="Auto" HorizontalAlignment="Left" 
