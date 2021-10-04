@@ -488,7 +488,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                     encoder.Save(fs);
                 }
 
-                statusBarText.Text = string.Format(CultureInfo.InvariantCulture, "{0} {1}", Properties.Resources.ScreenshotWriteSuccess, path);
+                //statusBarText.Text = string.Format(CultureInfo.InvariantCulture, "{0} {1}", Properties.Resources.ScreenshotWriteSuccess, path);
             }
             catch (IOException)
             {
