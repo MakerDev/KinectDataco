@@ -136,12 +136,15 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
 
         private string _skeletonDir = Path.Combine(Directory.GetCurrentDirectory(), "skeleton");
         private string _colorDir = Path.Combine(Directory.GetCurrentDirectory(), "color");
-        private string _depth_dir = Path.Combine(Directory.GetCurrentDirectory(), "depth");
+        private string _depthDir = Path.Combine(Directory.GetCurrentDirectory(), "depth");
 
         private readonly JsonSerializerSettings _jsonSettings = new JsonSerializerSettings()
         {
             Converters = new List<JsonConverter> { new StringEnumConverter() }
         };
+
+        public string GestureName { get; set; } = "gesture1";
+
 
 
         /// <summary>
@@ -151,22 +154,8 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         {
             InitializeComponent();
 
-            if (Directory.Exists(_depth_dir) == false)
-            {
-                Directory.CreateDirectory(_depth_dir);
-            }
-
-            if (Directory.Exists(_colorDir) == false)
-            {
-                Directory.CreateDirectory(_colorDir);
-            }
-
-            if (Directory.Exists(_skeletonDir) == false)
-            {
-                Directory.CreateDirectory(_skeletonDir);
-            }
+            DataContext = this;
         }
-
 
         /// <summary>
         /// Execute startup tasks
@@ -397,7 +386,6 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
 
             if (_isLoadingJsonData == false)
             {
-
                 DrawSkeletons(skeletons);
             }
         }
@@ -455,6 +443,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         private void ButtonScreenshotClick(object sender, RoutedEventArgs e)
         {
             SaveAllImages();
+            Console.WriteLine(GestureName);
         }
 
         /// <summary>
@@ -478,7 +467,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
 
             string time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
 
-            string depthImagePath = Path.Combine(_depth_dir, "DepthSnapshot-" + time + ".png");
+            string depthImagePath = Path.Combine(_depthDir, "DepthSnapshot-" + time + ".png");
             string colorImagePath = Path.Combine(_colorDir, "ColorSnapshot-" + time + ".png");
 
             // write the new file to disk
@@ -511,6 +500,44 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             if (null != _sensor)
             {
                 _isRecording = CheckBoxRecordingMode.IsChecked.GetValueOrDefault();
+
+                if (_isRecording)
+                {
+                    //Create folders
+                    var gestureFolder = Path.Combine(Directory.GetCurrentDirectory(), GestureName);
+
+                    if (Directory.Exists(gestureFolder) == false)
+                    {
+                        Directory.CreateDirectory(gestureFolder);
+                    }
+
+                    var time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
+                    var currentRecordDir = Path.Combine(gestureFolder, $"{GestureName}-{time}");
+
+                    _skeletonDir = Path.Combine(currentRecordDir, "skeleton");
+                    _colorDir = Path.Combine(currentRecordDir, "color");
+                    _depthDir = Path.Combine(currentRecordDir, "depth");
+
+                    CreateDataDiretories();
+                }                
+            }
+        }
+
+        private void CreateDataDiretories()
+        {
+            if (Directory.Exists(_depthDir) == false)
+            {
+                Directory.CreateDirectory(_depthDir);
+            }
+
+            if (Directory.Exists(_colorDir) == false)
+            {
+                Directory.CreateDirectory(_colorDir);
+            }
+
+            if (Directory.Exists(_skeletonDir) == false)
+            {
+                Directory.CreateDirectory(_skeletonDir);
             }
         }
 

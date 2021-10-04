@@ -121,13 +121,28 @@
                     Content="Load json"
                     Click="OnDrawSkeletonFromJsonClick"
                     />
-            <CheckBox Style="{StaticResource SquareCheckBox}" 
+
+            <StackPanel Orientation="Horizontal">
+                <CheckBox Style="{StaticResource SquareCheckBox}" 
                       Content="Recording" 
                       Height="Auto" HorizontalAlignment="Left" 
                       VerticalAlignment="Center" Margin="0 10 10 10" 
                       Name="CheckBoxRecordingMode" 
                       Checked="RecordingModeChanged"
                       Unchecked="RecordingModeChanged"/>
+
+                <TextBox 
+                    HorizontalAlignment="Center"
+                    Height="Auto" Width="400"
+                    Margin="20 0 0 0"
+                    FontSize="22"
+                    VerticalContentAlignment="Center"
+                    HorizontalContentAlignment="Center"
+                    TextAlignment="Center"
+                    Text="{Binding GestureName, Mode=TwoWay}"
+                    
+                    />
+            </StackPanel>
         </DockPanel>
         <StatusBar Grid.Row="3" HorizontalAlignment="Stretch" Name="statusBar" VerticalAlignment="Bottom" Background="White" Foreground="{StaticResource MediumGreyBrush}">
             <StatusBarItem Padding="0 0 0 10">
