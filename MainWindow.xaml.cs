@@ -447,6 +447,11 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         }
 
         /// <summary>
+        /// This is to save color images with only half framerate.
+        /// </summary>
+        private static bool _saveColorImage = true;
+
+        /// <summary>
         /// Saves color and depth images to files.
         /// </summary>
         private void SaveAllImages()
@@ -457,36 +462,37 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                 return;
             }
 
-            // create a png bitmap encoder which knows how to save a .png file
-            BitmapEncoder depthEncoder = new PngBitmapEncoder();
-            BitmapEncoder colorEncoder = new PngBitmapEncoder();
+            SaveImage(_depthColorBitmap, _depthDir, "DepthSnapshot-");
 
-            // create frame from the writable bitmap and add to encoder
-            depthEncoder.Frames.Add(BitmapFrame.Create(_depthColorBitmap));
-            colorEncoder.Frames.Add(BitmapFrame.Create(_colorBitmap));
+            if (_saveColorImage)
+            {
+                SaveImage(_colorBitmap, _colorDir, "ColorSnapshot-");
+            }
 
+            _saveColorImage = !_saveColorImage;
+        }
+
+        private void SaveImage(WriteableBitmap bitmap, string dir, string prefix)
+        {
+            BitmapEncoder encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
             string time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
 
-            string depthImagePath = Path.Combine(_depthDir, "DepthSnapshot-" + time + ".png");
-            string colorImagePath = Path.Combine(_colorDir, "ColorSnapshot-" + time + ".png");
+            string path = Path.Combine(dir, prefix + time + ".png");
 
             // write the new file to disk
             try
             {
-                using (FileStream fs = new FileStream(depthImagePath, FileMode.Create))
+                using (FileStream fs = new FileStream(path, FileMode.Create))
                 {
-                    depthEncoder.Save(fs);
-                }
-                using (FileStream fs = new FileStream(colorImagePath, FileMode.Create))
-                {
-                    colorEncoder.Save(fs);
+                    encoder.Save(fs);
                 }
 
-                statusBarText.Text = string.Format(CultureInfo.InvariantCulture, "{0} {1}", Properties.Resources.ScreenshotWriteSuccess, depthImagePath);
+                statusBarText.Text = string.Format(CultureInfo.InvariantCulture, "{0} {1}", Properties.Resources.ScreenshotWriteSuccess, path);
             }
             catch (IOException)
             {
-                statusBarText.Text = string.Format(CultureInfo.InvariantCulture, "{0} {1}", Properties.Resources.ScreenshotWriteFailed, depthImagePath);
+                statusBarText.Text = string.Format(CultureInfo.InvariantCulture, "{0} {1}", Properties.Resources.ScreenshotWriteFailed, path);
             }
         }
 
@@ -519,7 +525,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                     _depthDir = Path.Combine(currentRecordDir, "depth");
 
                     CreateDataDiretories();
-                }                
+                }
             }
         }
 
