@@ -462,23 +462,24 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                 return;
             }
 
-            SaveImage(_depthColorBitmap, _depthDir, "DepthSnapshot-");
+            string time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
+
+            SaveImage(_depthColorBitmap, _depthDir, "DepthSnapshot-" + time);
 
             if (_saveColorImage)
             {
-                SaveImage(_colorBitmap, _colorDir, "ColorSnapshot-");
+                SaveImage(_colorBitmap, _colorDir, "ColorSnapshot-" + time);
             }
 
             _saveColorImage = !_saveColorImage;
         }
 
-        private void SaveImage(WriteableBitmap bitmap, string dir, string prefix)
+        private void SaveImage(WriteableBitmap bitmap, string dir, string filename)
         {
             BitmapEncoder encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(bitmap));
-            string time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
 
-            string path = Path.Combine(dir, prefix + time + ".png");
+            string path = Path.Combine(dir, filename + ".png");
 
             // write the new file to disk
             try
