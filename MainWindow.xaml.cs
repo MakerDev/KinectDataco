@@ -475,7 +475,8 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                     if (Directory.Exists(modelFolder) == false)
                     {
                         Directory.CreateDirectory(modelFolder);
-                    }                    
+                    }
+
                     var time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
                     _colorDir = Path.Combine(modelFolder, $"{time}_{GestureName}");
 
