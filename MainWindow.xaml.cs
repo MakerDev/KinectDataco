@@ -84,6 +84,13 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         /// </summary>
         private KinectSensor _sensor;
 
+        private PythonModelExecuter _modelExecuter;
+
+        /// <summary>
+        /// Directory that will contiain the 'color' folder of this clip.
+        /// </summary>
+        private string _currentRecordingDirectory = null;
+
         /// <summary>
         /// Drawing group for skeleton rendering output
         /// </summary>
@@ -155,6 +162,25 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             InitializeComponent();
 
             DataContext = this;
+
+            FileInfo pythonFile = new FileInfo("MODEL/3D_RESNET_STREAM_INFERENCE_LOCAL.py");
+
+            _modelExecuter = new PythonModelExecuter(pythonFile, Dispatcher.CurrentDispatcher);
+            _modelExecuter.OutputRedirected += OnOutputRedirected;
+        }
+
+        private void OnOutputRedirected(string result)
+        {
+            Console.WriteLine(result);
+            statusBarText.Text += result + "\n";
+
+            int prediction = -1;
+            bool isDigit = int.TryParse(result, out prediction);
+
+            if (isDigit)
+            {
+                _predictionTextBlock.Text = $"PRED\n{prediction}";
+            }
         }
 
         /// <summary>
@@ -171,7 +197,6 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             _skeletonImageSource = new DrawingImage(_drawingGroup);
 
             // Display the drawing using our image control
-            SkeltonImage.Source = _skeletonImageSource;
 
             // Look through all sensors and start the first connected one.
             // This requires that a Kinect is connected at the time of app startup.
@@ -225,7 +250,6 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                 _depthColorBitmap = new WriteableBitmap(_sensor.DepthStream.FrameWidth, _sensor.DepthStream.FrameHeight, 96.0, 96.0, PixelFormats.Bgr32, null);
 
                 // Set the image we display to point to the bitmap where we'll put the image data
-                DepthImage.Source = _depthColorBitmap;
 
                 // Add an event handler to be called whenever there is new depth frame data
                 _sensor.DepthFrameReady += OnFrameReadySensorDepthFrame;
@@ -363,24 +387,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                 if (skeletonFrame != null)
                 {
                     skeletons = new Skeleton[skeletonFrame.SkeletonArrayLength];
-                    skeletonFrame.CopySkeletonDataTo(skeletons);
-
-                    if (_isRecording)
-                    {
-                        string time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
-
-                        string jsonPath = Path.Combine(_skeletonDir, "Skeleton-" + time + ".json");
-                        string jsonData = JsonConvert.SerializeObject(skeletons, Formatting.Indented, new StringEnumConverter());
-
-                        try
-                        {
-                            File.WriteAllText(jsonPath, jsonData);
-                        }
-                        catch (IOException)
-                        {
-                            statusBarText.Text = string.Format(CultureInfo.InvariantCulture, "{0} {1}", Properties.Resources.ScreenshotWriteFailed, jsonPath);
-                        }
-                    }
+                    skeletonFrame.CopySkeletonDataTo(skeletons);                    
                 }
             }
 
@@ -390,50 +397,6 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             }
         }
 
-        #region REPLAY JSON SKELETON DATA
-
-        private void OnDrawSkeletonFromJsonClick(object sender, RoutedEventArgs e)
-        {
-            var skeletonDirInfo = new DirectoryInfo(_skeletonDir);
-            _jsonFiles = skeletonDirInfo.GetFiles("*.json");
-
-            _currentJsonIdx = 0;
-            _dispatcherTimer.Tick += DrawSkeletonFrameFromJson;
-            _dispatcherTimer.Interval = TimeSpan.FromMilliseconds(50);
-            _dispatcherTimer.Start();
-            _isLoadingJsonData = true;
-        }
-
-        private void DrawSkeletonFrameFromJson(object sender, EventArgs e)
-        {
-            if (_jsonFiles.Length <= _currentJsonIdx + 1)
-            {
-                _isLoadingJsonData = false;
-                _dispatcherTimer.Stop();
-                return;
-            }
-
-            var jsonFile = _jsonFiles[_currentJsonIdx++];
-
-            var skeletons = JsonConvert.DeserializeObject<Skeleton[]>(File.ReadAllText(jsonFile.FullName), _jsonSettings);
-            var skeletonsTemp = JsonConvert.DeserializeObject<SkeletonTemp[]>(File.ReadAllText(jsonFile.FullName), _jsonSettings);
-            for (int i = 0; i < skeletons.Length; i++)
-            {
-                //num of joint types = 20
-                for (int j = 0; j < 20; j++)
-                {
-                    var joint = skeletons[i].Joints[(JointType)j];
-                    var jointTemp = skeletonsTemp[i].Joints[j];
-                    joint.Position = jointTemp.Position;
-                    joint.TrackingState = jointTemp.TrackingState;
-                    skeletons[i].Joints[(JointType)j] = joint;
-                }
-            }
-
-            DrawSkeletons(skeletons);
-        }
-
-        #endregion
 
         /// <summary>
         /// Handles the user clicking on the screenshot button
@@ -464,8 +427,6 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
 
             string time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
 
-            SaveImage(_depthColorBitmap, _depthDir, "DepthSnapshot-" + time);
-
             if (_saveColorImage)
             {
                 SaveImage(_colorBitmap, _colorDir, "ColorSnapshot-" + time);
@@ -488,8 +449,6 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                 {
                     encoder.Save(fs);
                 }
-
-                //statusBarText.Text = string.Format(CultureInfo.InvariantCulture, "{0} {1}", Properties.Resources.ScreenshotWriteSuccess, path);
             }
             catch (IOException)
             {
@@ -511,42 +470,27 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                 if (_isRecording)
                 {
                     //Create folders
-                    var gestureFolder = Path.Combine(Directory.GetCurrentDirectory(), GestureName);
+                    var modelFolder = Path.Combine(Directory.GetCurrentDirectory(), "MODEL/videos");
 
-                    if (Directory.Exists(gestureFolder) == false)
+                    if (Directory.Exists(modelFolder) == false)
                     {
-                        Directory.CreateDirectory(gestureFolder);
-                    }
-
+                        Directory.CreateDirectory(modelFolder);
+                    }                    
                     var time = DateTime.Now.ToString("hh'-'mm'-'ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
-                    var currentRecordDir = Path.Combine(gestureFolder, $"{GestureName}-{time}");
+                    _colorDir = Path.Combine(modelFolder, $"{time}_{GestureName}");
 
-                    _skeletonDir = Path.Combine(currentRecordDir, "skeleton");
-                    _colorDir = Path.Combine(currentRecordDir, "color");
-                    _depthDir = Path.Combine(currentRecordDir, "depth");
-
-                    CreateDataDiretories();
+                    if (Directory.Exists(_colorDir) == false)
+                    {
+                        Directory.CreateDirectory(_colorDir);
+                    }
+                }
+                else
+                {
+                    _modelExecuter.ExecuteModel(_colorDir);
                 }
             }
         }
 
-        private void CreateDataDiretories()
-        {
-            if (Directory.Exists(_depthDir) == false)
-            {
-                Directory.CreateDirectory(_depthDir);
-            }
-
-            if (Directory.Exists(_colorDir) == false)
-            {
-                Directory.CreateDirectory(_colorDir);
-            }
-
-            if (Directory.Exists(_skeletonDir) == false)
-            {
-                Directory.CreateDirectory(_skeletonDir);
-            }
-        }
 
         #region SKELETON DRAWINGS
         /// <summary>
